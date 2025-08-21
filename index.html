@@ -43,8 +43,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản Lý Pet Trong Game</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onload="console.log('XLSX loaded')" onerror="loadFallbackXLSX()"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" onload="console.log('FileSaver loaded')" onerror="loadFallbackFileSaver()"></script>
+    <script>
+        function loadFallbackXLSX() {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';
+            script.onload = () => console.log('Fallback XLSX loaded');
+            script.onerror = () => alert('Không thể tải thư viện Excel. Chức năng xuất/nhập Excel sẽ không hoạt động!');
+            document.head.appendChild(script);
+        }
+        function loadFallbackFileSaver() {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js';
+            script.onload = () => console.log('Fallback FileSaver loaded');
+            script.onerror = () => alert('Không thể tải thư viện FileSaver. Chức năng xuất Excel sẽ không hoạt động!');
+            document.head.appendChild(script);
+        }
+    </script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -159,11 +175,24 @@
         .custom-settings-form .gen-checkboxes {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 5px;
+            gap: 8px;
+        }
+        .custom-settings-form .gen-checkboxes button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        .custom-settings-form .gen-checkboxes button:hover {
+            background-color: #0069d9;
         }
         @media (max-width: 400px) {
             .custom-settings-form .gen-checkboxes {
                 grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
             }
         }
         .custom-settings-form label {
@@ -571,6 +600,8 @@
                 </div>
                 <div class="section gen-checkboxes">
                     <h3>Ẩn Gen không dùng</h3>
+                    <button onclick="selectAllGens()">Chọn tất cả</button>
+                    <button onclick="deselectAllGens()">Bỏ chọn tất cả</button>
                     <label><input type="checkbox" id="hideGen1" onchange="updateCustomSettings()"> Gen 1</label>
                     <label><input type="checkbox" id="hideGen2" onchange="updateCustomSettings()"> Gen 2</label>
                     <label><input type="checkbox" id="hideGen3" onchange="updateCustomSettings()"> Gen 3</label>
@@ -734,10 +765,19 @@
                 const resizeRows = document.getElementById('resizeRows').checked;
 
                 const hiddenGens = [];
+                let warningMessage = '';
                 for (let i = 1; i <= 10; i++) {
                     if (document.getElementById(`hideGen${i}`).checked) {
+                        const genPets = pets.filter(p => p.gen === i && p.quantity > 0);
+                        if (genPets.length > 0) {
+                            const total = genPets.reduce((sum, p) => sum + p.quantity, 0);
+                            warningMessage += `Gen ${i} có ${total} pet sẽ bị ẩn. `;
+                        }
                         hiddenGens.push(i);
                     }
+                }
+                if (warningMessage) {
+                    alert('Cảnh báo: ' + warningMessage + 'Dữ liệu vẫn được lưu và hiển thị trong thống kê.');
                 }
 
                 document.body.className = `font-size-${fontSize} layout-${layout}${uppercaseText ? ' uppercase-text' : ''}`;
@@ -777,6 +817,20 @@
                 console.error('Lỗi trong updateCustomSettings:', error);
                 alert('Đã xảy ra lỗi khi cập nhật tùy chỉnh giao diện. Vui lòng thử lại!');
             }
+        }
+
+        function selectAllGens() {
+            for (let i = 1; i <= 10; i++) {
+                document.getElementById(`hideGen${i}`).checked = true;
+            }
+            updateCustomSettings();
+        }
+
+        function deselectAllGens() {
+            for (let i = 1; i <= 10; i++) {
+                document.getElementById(`hideGen${i}`).checked = false;
+            }
+            updateCustomSettings();
         }
 
         function setupRowResizing() {
@@ -1088,6 +1142,7 @@
                 }
                 initializeEggPetTable(hiddenGens);
                 updateStats();
+                savePets();
                 saveCustomSettings();
             } catch (error) {
                 console.error('Lỗi trong updatePet:', error);
@@ -1116,6 +1171,7 @@
                 }
                 initializeEggPetTable(hiddenGens);
                 updateStats();
+                savePets();
                 saveCustomSettings();
             } catch (error) {
                 console.error('Lỗi trong deletePet:', error);
