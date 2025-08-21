@@ -549,7 +549,7 @@
 
     <!-- Nút lưu, xuất, nhập và tùy chỉnh -->
     <div class="import-container">
-        <button class="save-button" onclick="savePets()">Lưu Dữ Liệu</button>
+        <button class="save-button" onclick="savePetsToGitHub()">Lưu Dữ Liệu</button>
         <button class="export-button" onclick="exportToExcel()">Xuất ra Excel</button>
         <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display: none;" onchange="importFromExcel(this.files[0])">
         <button class="import-button" onclick="document.getElementById('importFile').click()">Nhập từ Excel</button>
@@ -630,6 +630,13 @@
                 });
             });
         }
+
+        // Cấu hình GitHub
+        const GITHUB_TOKEN = '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';
+        const GITHUB_OWNER = 'Dkelvind';
+        const GITHUB_REPO = 'quanlypet';
+        const PETS_JSON_PATH = 'pets.json';
+        const PETS_JSON_URL = 'https://raw.githubusercontent.com/Dkelvind/quanlypet/refs/heads/main/pets.json';
 
         function openCustomSettingsModal() {
             document.getElementById('customSettingsModal').style.display = 'block';
@@ -752,6 +759,16 @@
             }
         }
 
+        function getHiddenGens() {
+            const hiddenGens = [];
+            for (let i = 1; i <= 10; i++) {
+                if (document.getElementById(`hideGen${i}`).checked) {
+                    hiddenGens.push(i);
+                }
+            }
+            return hiddenGens;
+        }
+
         function updateCustomSettings() {
             try {
                 const fontSize = document.getElementById('fontSizeSelect').value;
@@ -857,6 +874,57 @@
             });
         }
 
+        async function loadPetsFromGitHub() {
+            try {
+                const response = await fetch(PETS_JSON_URL);
+                if (!response.ok) throw new Error('Không thể tải pets.json');
+                const parsedPets = await response.json();
+                if (!Array.isArray(parsedPets)) throw new Error('Dữ liệu pets không phải mảng');
+                pets.forEach(pet => {
+                    const saved = parsedPets.find(s => s.type === pet.type && s.quality === pet.quality && s.gender === pet.gender && s.gen === s.gen);
+                    if (saved && typeof saved.quantity === 'number' && saved.quantity >= 0) {
+                        pet.quantity = saved.quantity;
+                    }
+                });
+                updateStats();
+                initializeEggPetTable(getHiddenGens());
+            } catch (error) {
+                console.error('Lỗi trong loadPetsFromGitHub:', error);
+                alert('Không thể tải dữ liệu từ GitHub: ' + error.message);
+            }
+        }
+
+        async function savePetsToGitHub() {
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${PETS_JSON_PATH}`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                });
+                if (!response.ok) throw new Error('Không thể lấy thông tin pets.json');
+                const data = await response.json();
+                const sha = data.sha;
+                const content = btoa(JSON.stringify(pets));
+                const updateResponse = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: 'Cập nhật pets.json',
+                        content: content,
+                        sha: sha
+                    })
+                });
+                if (!updateResponse.ok) throw new Error('Không thể lưu pets.json');
+                alert('Dữ liệu đã được lưu lên GitHub!');
+            } catch (error) {
+                console.error('Lỗi trong savePetsToGitHub:', error);
+                alert('Lỗi khi lưu dữ liệu lên GitHub: ' + error.message);
+            }
+        }
+
         function updateStats() {
             try {
                 const gen0_SR = pets.filter(p => p.gen === 0 && p.quality === 'SR').reduce((sum, p) => sum + p.quantity, 0);
@@ -911,38 +979,6 @@
             }
         }
 
-        function loadPets() {
-            try {
-                const savedPets = localStorage.getItem('pets');
-                if (savedPets) {
-                    const parsedPets = JSON.parse(savedPets);
-                    if (!Array.isArray(parsedPets)) {
-                        throw new Error('Dữ liệu pets trong localStorage không phải mảng');
-                    }
-                    pets.forEach(pet => {
-                        const saved = parsedPets.find(s => s.type === pet.type && s.quality === pet.quality && s.gender === pet.gender && s.gen === pet.gen);
-                        if (saved && typeof saved.quantity === 'number' && saved.quantity >= 0) {
-                            pet.quantity = saved.quantity;
-                        }
-                    });
-                }
-                updateStats();
-            } catch (error) {
-                console.error('Lỗi trong loadPets:', error);
-                alert('Đã xảy ra lỗi khi tải dữ liệu pets từ localStorage: ' + error.message);
-            }
-        }
-
-        function savePets() {
-            try {
-                localStorage.setItem('pets', JSON.stringify(pets));
-                alert('Dữ liệu đã được lưu!');
-            } catch (error) {
-                console.error('Lỗi trong savePets:', error);
-                alert('Đã xảy ra lỗi khi lưu dữ liệu. Vui lòng thử lại!');
-            }
-        }
-
         function exportToExcel() {
             try {
                 console.time('exportExcel');
@@ -985,7 +1021,7 @@
             }
         }
 
-        function importFromExcel(file) {
+        async function importFromExcel(file) {
             try {
                 if (!file) {
                     alert('Vui lòng chọn file Excel!');
@@ -996,7 +1032,7 @@
                     return;
                 }
                 const reader = new FileReader();
-                reader.onload = function(e) {
+                reader.onload = async function(e) {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
@@ -1034,16 +1070,11 @@
                             return;
                         }
 
-                        const hiddenGens = [];
-                        for (let i = 1; i <= 10; i++) {
-                            if (document.getElementById(`hideGen${i}`).checked) {
-                                hiddenGens.push(i);
-                            }
-                        }
+                        const hiddenGens = getHiddenGens();
                         initializeEggPetTable(hiddenGens);
                         updateStats();
-                        savePets();
-                        alert('Đã nhập dữ liệu từ file Excel thành công!');
+                        await savePetsToGitHub();
+                        alert('Đã nhập dữ liệu từ file Excel và lưu lên GitHub!');
                     } catch (error) {
                         console.error('Lỗi trong importFromExcel:', error);
                         alert('Lỗi khi đọc file Excel: ' + error.message);
@@ -1128,21 +1159,16 @@
             }
         }
 
-        function updatePet(type, quality, gender, gen, quantity) {
+        async function updatePet(type, quality, gender, gen, quantity) {
             try {
                 const pet = pets.find(p => p.type === type && p.quality === quality && p.gender === gender && p.gen === gen);
                 if (pet) {
                     pet.quantity = Math.max(0, parseInt(quantity) || 0);
                 }
-                const hiddenGens = [];
-                for (let i = 1; i <= 10; i++) {
-                    if (document.getElementById(`hideGen${i}`).checked) {
-                        hiddenGens.push(i);
-                    }
-                }
+                const hiddenGens = getHiddenGens();
                 initializeEggPetTable(hiddenGens);
                 updateStats();
-                savePets();
+                await savePetsToGitHub();
                 saveCustomSettings();
             } catch (error) {
                 console.error('Lỗi trong updatePet:', error);
@@ -1150,7 +1176,7 @@
             }
         }
 
-        function deletePet() {
+        async function deletePet() {
             try {
                 const quality = document.getElementById('delete_quality').value;
                 const gender = document.getElementById('delete_gender').value;
@@ -1163,15 +1189,10 @@
                 } else {
                     alert('Số lượng pet không đủ để xóa hoặc không tìm thấy pet!');
                 }
-                const hiddenGens = [];
-                for (let i = 1; i <= 10; i++) {
-                    if (document.getElementById(`hideGen${i}`).checked) {
-                        hiddenGens.push(i);
-                    }
-                }
+                const hiddenGens = getHiddenGens();
                 initializeEggPetTable(hiddenGens);
                 updateStats();
-                savePets();
+                await savePetsToGitHub();
                 saveCustomSettings();
             } catch (error) {
                 console.error('Lỗi trong deletePet:', error);
@@ -1231,7 +1252,7 @@
             }
         }
 
-        window.onload = function() {
+        window.onload = async function() {
             try {
                 if (typeof XLSX === 'undefined') {
                     console.warn('Thư viện XLSX không tải được. Chức năng xuất/nhập Excel sẽ không hoạt động.');
@@ -1241,7 +1262,7 @@
                     console.warn('Thư viện FileSaver không tải được. Chức năng xuất Excel sẽ không hoạt động.');
                     alert('Không thể tải thư viện FileSaver. Chức năng xuất Excel có thể không hoạt động. Vui lòng kiểm tra kết nối mạng!');
                 }
-                loadPets();
+                await loadPetsFromGitHub();
                 loadCustomSettings();
             } catch (error) {
                 console.error('Lỗi khi tải trang:', error);
