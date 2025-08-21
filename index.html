@@ -167,7 +167,8 @@
             gap: 15px;
         }
         .custom-settings-form .size-settings, 
-        .custom-settings-form .options-settings {
+        .custom-settings-form .options-settings,
+        .custom-settings-form .token-settings {
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -201,9 +202,13 @@
             align-items: center;
             gap: 5px;
         }
+        .custom-settings-form input[type="text"],
         .custom-settings-form input[type="range"] {
             width: 120px;
             margin: 5px 0;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
         }
         .custom-settings-form .slider-value {
             display: inline-block;
@@ -220,6 +225,28 @@
         }
         .custom-settings-form input[type="checkbox"] {
             margin: 0 5px 0 0;
+        }
+        .custom-settings-form .token-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .custom-settings-form .token-buttons button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            flex: 1;
+        }
+        .custom-settings-form .token-buttons button:hover {
+            background-color: #0069d9;
+        }
+        .custom-settings-form .token-buttons .clear-token-button {
+            background-color: #dc3545;
+        }
+        .custom-settings-form .token-buttons .clear-token-button:hover {
+            background-color: #c82333;
         }
         .stats-container, .pet-grid {
             background: white;
@@ -598,6 +625,20 @@
                         </select>
                     </div>
                 </div>
+                <div class="section token-settings">
+                    <h3>Cài đặt Token GitHub</h3>
+                    <div>
+                        <label>GitHub Token:</label>
+                        <input type="text" id="githubTokenInput" placeholder="Nhập token GitHub">
+                    </div>
+                    <p style="font-size: 0.9em; color: #dc3545;">
+                        Lưu ý: Token chỉ được lưu cục bộ trên trình duyệt này. Không lưu trong mã nguồn. Xóa dữ liệu trình duyệt sẽ xóa token.
+                    </p>
+                    <div class="token-buttons">
+                        <button onclick="saveGitHubToken()">Lưu Token</button>
+                        <button class="clear-token-button" onclick="clearGitHubToken()">Xóa Token</button>
+                    </div>
+                </div>
                 <div class="section gen-checkboxes">
                     <h3>Ẩn Gen không dùng</h3>
                     <button onclick="selectAllGens()">Chọn tất cả</button>
@@ -632,11 +673,42 @@
         }
 
         // Cấu hình GitHub
-        const GITHUB_TOKEN = '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';
         const GITHUB_OWNER = 'Dkelvind';
         const GITHUB_REPO = 'quanlypet';
         const PETS_JSON_PATH = 'pets.json';
         const PETS_JSON_URL = 'https://raw.githubusercontent.com/Dkelvind/quanlypet/refs/heads/main/pets.json';
+
+        // Hàm quản lý token
+        function saveGitHubToken() {
+            try {
+                const token = document.getElementById('githubTokenInput').value.trim();
+                if (!token.startsWith('github_pat_')) {
+                    alert('Token không hợp lệ! Vui lòng nhập token GitHub Personal Access Token hợp lệ.');
+                    return;
+                }
+                localStorage.setItem('githubToken', token);
+                alert('Token đã được lưu vào trình duyệt!');
+                document.getElementById('githubTokenInput').value = '';
+            } catch (error) {
+                console.error('Lỗi khi lưu token:', error);
+                alert('Đã xảy ra lỗi khi lưu token. Vui lòng thử lại!');
+            }
+        }
+
+        function clearGitHubToken() {
+            try {
+                localStorage.removeItem('githubToken');
+                alert('Token đã được xóa khỏi trình duyệt!');
+                document.getElementById('githubTokenInput').value = '';
+            } catch (error) {
+                console.error('Lỗi khi xóa token:', error);
+                alert('Đã xảy ra lỗi khi xóa token. Vui lòng thử lại!');
+            }
+        }
+
+        function getGitHubToken() {
+            return localStorage.getItem('githubToken');
+        }
 
         function openCustomSettingsModal() {
             document.getElementById('customSettingsModal').style.display = 'block';
@@ -896,10 +968,15 @@
 
         async function savePetsToGitHub() {
             try {
+                const token = getGitHubToken();
+                if (!token) {
+                    alert('Vui lòng nhập GitHub Token trong mục Tùy chỉnh giao diện > Cài đặt Token GitHub!');
+                    return;
+                }
                 const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${PETS_JSON_PATH}`;
                 const response = await fetch(url, {
                     method: 'GET',
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                    headers: { 'Authorization': `token ${token}` }
                 });
                 if (!response.ok) throw new Error('Không thể lấy thông tin pets.json');
                 const data = await response.json();
@@ -908,7 +985,7 @@
                 const updateResponse = await fetch(url, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Authorization': `token ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
